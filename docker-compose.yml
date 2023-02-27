@@ -1,0 +1,73 @@
+version: '3'
+
+services:
+  phpmyadmin:
+    depends_on:
+      - db
+    image: phpmyadmin/phpmyadmin
+    restart: always
+    ports:
+      - '8080:80'
+    networks:
+      - wordpress
+  db:
+    image: mysql:8.0
+    container_name: db
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - MYSQL_DATABASE=wordpress-theme
+    volumes: 
+      - ./dbdata:/var/lib/mysql
+    command: '--default-authentication-plugin=mysql_native_password'
+    networks:
+      - wordpress
+
+  wordpress:
+    depends_on: 
+      - db
+    image: wordpress:6.1.1-fpm-alpine
+    container_name: wordpress
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - WORDPRESS_DB_HOST=db:3306
+      - WORDPRESS_DB_USER=$MYSQL_USER
+      - WORDPRESS_DB_PASSWORD=$MYSQL_PASSWORD
+      - WORDPRESS_DB_NAME=wordpress-theme
+    volumes:
+      - ./wordpress:/var/www/html:delegated
+      - ./config/uploads.ini:/usr/local/etc/php/conf.d/uploads.ini 
+    networks:
+      - wordpress
+
+  webserver:
+    depends_on:
+      - wordpress
+    image: nginx:1.15.12-alpine
+    container_name: webserver
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./wordpress:/var/www/html:delegated
+      - ./nginx-conf/default.conf:/etc/nginx/conf.d/default.conf
+    networks:
+      - wordpress
+  
+  php:
+    build: 
+      context: .
+      dockerfile: php.dockerfile
+    volumes:
+      - ./wordpress:/var/www/html:delegated
+
+
+volumes:
+  wordpress:
+  dbdata:
+
+
+networks:
+  wordpress:
+    driver: bridge
